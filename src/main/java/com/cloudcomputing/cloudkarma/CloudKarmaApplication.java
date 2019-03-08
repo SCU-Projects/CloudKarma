@@ -11,6 +11,7 @@ public class CloudKarmaApplication {
 		SpringApplication.run(CloudKarmaApplication.class, args);
 		ApiCaller apiCaller = new ApiCaller();
 		apiCaller.getEc2InstanceInfo();
+		//apiCaller.getCloudWatchMetrics();
 	}
 
 }
