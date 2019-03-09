@@ -141,6 +141,30 @@ public class Actions {
         });
         return containerInstanceIdList;
     }
+	
+	private static void getContainerResources(List<String> containerInstances) {
+		DescribeContainerInstancesResult result = describeContainerInstances(containerInstances);
+		for (ContainerInstance c : result.getContainerInstances()) {
+			System.out.println("Resource for container instance" + c.getContainerInstanceArn());
+			for (Resource r : c.getRegisteredResources()) {
+				System.out.println("Registered-> " + r.getName() + " : " + r.getIntegerValue());
+			}
+			for (Resource r : c.getRemainingResources()) {
+				System.out.println("Remaining-> " + r.getName() + " : " + r.getIntegerValue());
+			}
+
+		}
+
+	}
+	
+	private static void taskMonitoring(List<String> containerInstances) {
+		DescribeContainerInstancesResult result = describeContainerInstances(containerInstances);
+		for (ContainerInstance c : result.getContainerInstances()) {
+			if(c.getRunningTasksCount()==0){
+				//stop that container instance
+			}
+		}
+	}
 
     private static AmazonEC2Client getEc2Client(Regions region){
         AmazonEC2Client ec2Client = new AmazonEC2Client();
