@@ -1,6 +1,5 @@
 package com.cloudcomputing.cloudkarma;
 
-import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.autoscaling.AmazonAutoScalingClient;
 import com.amazonaws.services.autoscaling.model.DescribeAutoScalingInstancesRequest;
@@ -11,6 +10,9 @@ import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.*;
 import com.amazonaws.services.ecs.AmazonECSClient;
 import com.amazonaws.services.ecs.model.*;
+import com.cloudcomputing.cloudkarma.Model.Instance;
+import com.cloudcomputing.cloudkarma.Model.MigratingTask;
+import com.cloudcomputing.cloudkarma.Model.ContainerResources;
 import org.springframework.stereotype.Service;
 
 
@@ -18,6 +20,10 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static com.cloudcomputing.cloudkarma.Commons.Utilities.getAutoScalingClient;
+import static com.cloudcomputing.cloudkarma.Commons.Utilities.getEc2Client;
+import static com.cloudcomputing.cloudkarma.Commons.Utilities.getEcsClient;
 
 @Service
 public class Actions {
@@ -66,27 +72,73 @@ public class Actions {
     }
 
     public static boolean stopInstancesIfInactive(String cluster){
-        if(isZeroRunningTasksInCluster(cluster)){
-            //get instances for the cluster and stop tasks
-            ListContainerInstancesResult activeEc2Instances = getInstancesForTheCluster(cluster);
-            List<String> containerInstancesList = activeEc2Instances.getContainerInstanceArns();
-            containerInstancesList = getContainerInstanceIds(containerInstancesList);
-
-            //getEc2InstanceIds from containerInstance name
-            List<String> ec2InstanceIds = new ArrayList<>();
-            describeContainerInstances(containerInstancesList)
-                    .getContainerInstances()
-                    .forEach(containerInstance -> {
-                        ec2InstanceIds.add(containerInstance.getEc2InstanceId());
-                    });
-
-            //stopInstances by setting capacity to 0 in the autoscale group
-            getAutoScalingGroupNameFromInstanceId(ec2InstanceIds)
-                    .forEach(autoScalingGroupName -> updateAutoScaleGroup(autoScalingGroupName, 0));
-            return true;
-        }
-        else
+        if(!isZeroRunningTasksInCluster(cluster))
             return false;
+        //get instances for the cluster and stop tasks
+        ListContainerInstancesResult activeEc2Instances = getInstancesForTheCluster(cluster);
+        List<String> containerInstancesList = activeEc2Instances.getContainerInstanceArns();
+        containerInstancesList = getContainerInstanceIds(containerInstancesList);
+
+        //getEc2InstanceIds from containerInstance name
+        List<String> ec2InstanceIds = new ArrayList<>();
+        describeContainerInstances(containerInstancesList)
+                .getContainerInstances()
+                .forEach(containerInstance -> {
+                    ec2InstanceIds.add(containerInstance.getEc2InstanceId());
+                });
+
+        //stopInstances by setting capacity to 0 in the autoscale group
+        getAutoScalingGroupNameFromInstanceId(ec2InstanceIds)
+                .forEach(autoScalingGroupName -> updateAutoScaleGroup(autoScalingGroupName, 0));
+        return true;
+    }
+
+    List<MigratingTask> getMigratingTaskDetailsForTheCluster(String cluster){
+        List<MigratingTask> migratingTasks = new ArrayList<>();
+        List<String> clusterContainerResources = new ArrayList<>();
+        clusterContainerResources.add("sdadsdsdsdfdsf");
+        List<ContainerResources> resources = getContainerResources(clusterContainerResources);
+        List<MigratingTask> toMoveTasksList = new ArrayList<>();
+        MigratingTask toMoveTasks = new MigratingTask();
+        Instance instance = new Instance("","");
+        toMoveTasks.setSource(instance);
+        toMoveTasks.setResource();
+        List<String> taskList = new ArrayList<>();
+        taskList.add("dsfsd");
+        toMoveTasks.setTaskList(taskList);
+        toMoveTasksList.add(toMoveTasks);
+        filterInstancesBasedOnAvailableResources(resources, toMoveTasksList);
+        return migratingTasks;
+    }
+
+    private static void filterInstancesBasedOnAvailableResources(List<ContainerResources> containerResourceList, List<ToMoveTasks> toMoveTasksList){
+        containerResourceList
+                .stream()
+                .filter()
+                .map(containerResources -> {
+
+                })
+    }
+
+    private static List<ContainerResources> getContainerResources(List<String> containerInstances) {
+        DescribeContainerInstancesResult result = describeContainerInstances(containerInstances);
+        List<ContainerResources> resources = new ArrayList<>();
+
+        result.getContainerInstances().forEach(containerInstance -> {
+            containerInstance.getRemainingResources().forEach(res -> {
+                ContainerResources.FreeSpace freeSpace = new ContainerResources.FreeSpace();
+                if (res.getName().equals("CPU")) {
+                    ((ContainerResources.FreeSpace) freeSpace).setCpuAvailable(res.getIntegerValue());
+                }
+                if (res.getName().equals("MEMORY")) {
+                    ((ContainerResources.FreeSpace) freeSpace).setMemoryAvailable(res.getIntegerValue());
+                }
+                ContainerResources containerResources = new ContainerResources(containerInstance.getEc2InstanceId(),
+                        containerInstance.getContainerInstanceArn(), containerInstance.getRunningTasksCount(), freeSpace);
+                resources.add(containerResources);
+            });
+        });
+        return resources;
     }
 
     private static boolean isZeroRunningTasksInCluster(String cluster){
@@ -130,34 +182,16 @@ public class Actions {
         return result;
     }
 
-    private static List<String> getContainerInstanceIds(List<String> inputContainerInstanceIds){
+    private static List<String> getContainerInstanceIds(List<String> inputContainerInstanceIds) {
         //extracts the ec2instance-id from the container instance ARN
         List<String> containerInstanceIdList = new ArrayList<>();
         Pattern p = Pattern.compile("(.+\\/)(.+)");
         inputContainerInstanceIds.forEach(containerInstanceId -> {
             Matcher matcher = p.matcher(containerInstanceId);
-            if(matcher.find())
+            if (matcher.find())
                 containerInstanceIdList.add(matcher.group(2));
         });
         return containerInstanceIdList;
-    }
-
-    private static AmazonEC2Client getEc2Client(Regions region){
-        AmazonEC2Client ec2Client = new AmazonEC2Client();
-        ec2Client.setRegion(Region.getRegion(region));
-        return ec2Client;
-    }
-
-    private static AmazonECSClient getEcsClient(Regions region){
-        AmazonECSClient ecsClient = new AmazonECSClient();
-        ecsClient.setRegion(Region.getRegion(region));
-        return ecsClient;
-    }
-
-    private static AmazonAutoScalingClient getAutoScalingClient(Regions region){
-        AmazonAutoScalingClient autoScalingClient = new AmazonAutoScalingClient();
-        autoScalingClient.setRegion(Region.getRegion(region));
-        return autoScalingClient;
     }
 
 }
