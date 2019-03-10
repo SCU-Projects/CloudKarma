@@ -15,5 +15,4 @@ public class MigratingTask {
     Instance destination;
     List<String> tagsList;
     Resource resource;
-    String taskArn;
 }
