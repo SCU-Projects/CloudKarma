@@ -11,6 +11,8 @@ import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.*;
 import com.amazonaws.services.ecs.AmazonECSClient;
 import com.amazonaws.services.ecs.model.*;
+import com.cloudcomputing.cloudkarma.Model.ContainerResources;
+
 import org.springframework.stereotype.Service;
 
 
@@ -142,18 +144,30 @@ public class Actions {
         return containerInstanceIdList;
     }
 	
-	private static void getContainerResources(List<String> containerInstances) {
+	private static List<ContainerResources> getContainerResources(List<String> containerInstances) {
 		DescribeContainerInstancesResult result = describeContainerInstances(containerInstances);
-		for (ContainerInstance c : result.getContainerInstances()) {
-			System.out.println("Resource for container instance" + c.getContainerInstanceArn());
-			for (Resource r : c.getRegisteredResources()) {
-				System.out.println("Registered-> " + r.getName() + " : " + r.getIntegerValue());
-			}
-			for (Resource r : c.getRemainingResources()) {
-				System.out.println("Remaining-> " + r.getName() + " : " + r.getIntegerValue());
-			}
+		List<ContainerResources> resources = new ArrayList<>();
+		result.getContainerInstances().forEach(containerInstance -> {
+			
+			ContainerResources remainingResources = new ContainerResources();
+			remainingResources.setContainerInstanceArn(containerInstance.getContainerInstanceArn());
+			remainingResources.setEc2InstanceId(containerInstance.getEc2InstanceId());
+			remainingResources.setRunningTasksCount(containerInstance.getRunningTasksCount());
 
-		}
+			containerInstance.getRemainingResources().forEach(res -> {
+				if (res.getName().equals("CPU")) {
+					remainingResources.getFreeSpace().setCpuAvailable(res.getIntegerValue());
+				}
+				if (res.getName().equals("MEMORY")) {
+					remainingResources.getFreeSpace().setMemoryAvailable(res.getIntegerValue());
+				}
+			});
+			
+			
+			System.out.println(remainingResources); // for debugging
+			resources.add(remainingResources);
+		});
+		return resources;
 
 	}
 	
