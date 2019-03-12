@@ -10,6 +10,7 @@ import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.*;
 import com.amazonaws.services.ecs.AmazonECSClient;
 import com.amazonaws.services.ecs.model.*;
+
 import com.cloudcomputing.cloudkarma.Commons.ContainerResourcesComparator;
 import com.cloudcomputing.cloudkarma.Commons.MigratingTaskComparator;
 import com.cloudcomputing.cloudkarma.Model.Instance;
@@ -17,6 +18,7 @@ import com.cloudcomputing.cloudkarma.Model.MigratingTask;
 import com.cloudcomputing.cloudkarma.Model.ContainerResources;
 import com.cloudcomputing.cloudkarma.Model.Resource;
 import com.cloudcomputing.cloudkarma.Model.TaskQueue;
+
 import org.springframework.stereotype.Service;
 
 
@@ -306,5 +308,41 @@ public class Actions {
         });
         return containerInstanceIdList;
     }
+	
+	private static List<ContainerResources> getContainerResources(List<String> containerInstances) {
+		DescribeContainerInstancesResult result = describeContainerInstances(containerInstances);
+		List<ContainerResources> resources = new ArrayList<>();
+		result.getContainerInstances().forEach(containerInstance -> {
+			
+			ContainerResources remainingResources = new ContainerResources();
+			remainingResources.setContainerInstanceArn(containerInstance.getContainerInstanceArn());
+			remainingResources.setEc2InstanceId(containerInstance.getEc2InstanceId());
+			remainingResources.setRunningTasksCount(containerInstance.getRunningTasksCount());
+
+			containerInstance.getRemainingResources().forEach(res -> {
+				if (res.getName().equals("CPU")) {
+					remainingResources.getFreeSpace().setCpuAvailable(res.getIntegerValue());
+				}
+				if (res.getName().equals("MEMORY")) {
+					remainingResources.getFreeSpace().setMemoryAvailable(res.getIntegerValue());
+				}
+			});
+			
+			
+			System.out.println(remainingResources); // for debugging
+			resources.add(remainingResources);
+		});
+		return resources;
+
+	}
+	
+	private static void taskMonitoring(List<String> containerInstances) {
+		DescribeContainerInstancesResult result = describeContainerInstances(containerInstances);
+		for (ContainerInstance c : result.getContainerInstances()) {
+			if(c.getRunningTasksCount()==0){
+				//stop that container instance
+			}
+		}
+	}
 
 }
