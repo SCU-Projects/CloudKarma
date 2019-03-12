@@ -8,6 +8,7 @@ import lombok.Setter;
 
 @Data
 @NoArgsConstructor
+@AllArgsConstructor
 public class ContainerResources {
     String ec2InstanceId;
     String containerInstanceArn;
