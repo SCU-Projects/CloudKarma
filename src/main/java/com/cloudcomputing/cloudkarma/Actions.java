@@ -24,6 +24,8 @@ import com.cloudcomputing.cloudkarma.Model.ContainerResources;
 import com.cloudcomputing.cloudkarma.Model.Resource;
 import com.cloudcomputing.cloudkarma.Model.TaskQueue;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 
@@ -39,6 +41,8 @@ import static com.cloudcomputing.cloudkarma.Commons.Utilities.getEcsClient;
 @Service
 public class Actions{
 
+
+    private static Logger logger = LoggerFactory.getLogger(Actions.class);
 
     public StartInstancesResult startInstances(List<String> instanceList){
         AmazonEC2Client ec2Client = getEc2Client(Regions.US_EAST_2);
@@ -74,7 +78,7 @@ public class Actions{
         return response;
     }
 
-    public DescribeContainerInstancesResult describeContainerInstances(List<String> containerInstances){
+    public static DescribeContainerInstancesResult describeContainerInstances(List<String> containerInstances){
         //https://docs.aws.amazon.com/cli/latest/reference/ecs/describe-container-instances.html
         AmazonECSClient ecsClient = getEcsClient(Regions.US_WEST_1);
         DescribeContainerInstancesRequest describeContainerInstancesRequest = new DescribeContainerInstancesRequest();
@@ -84,14 +88,19 @@ public class Actions{
         return result;
     }
 
-    public boolean stopInstancesIfInactive(String cluster){
-        if(!isZeroRunningTasksInCluster(cluster))
+    public static boolean stopInstancesIfInactive(String cluster){
+        if(!isZeroRunningTasksInCluster(cluster)){
+            logger.info(String.format("Cluster:%s is already at its optimal configuration", cluster));
             return false;
+        }
+
         //get instances for the cluster and stop tasks
+        logger.info(String.format("Getting cluster EC2instances"));
         ListContainerInstancesResult activeEc2Instances = getInstancesForTheCluster(cluster);
         List<String> containerInstancesList = activeEc2Instances.getContainerInstanceArns();
+        logger.info(String.format("%s EC2instances ARN to be stopped: %s", cluster, containerInstancesList));
         containerInstancesList = getContainerInstanceIds(containerInstancesList);
-
+        logger.info(String.format("%s EC2instances Ec2Instance-Ids to be stopped: %s", cluster, containerInstancesList));
         //getEc2InstanceIds from containerInstance name
         List<String> ec2InstanceIds = new ArrayList<>();
         describeContainerInstances(containerInstancesList)
@@ -99,17 +108,18 @@ public class Actions{
                 .forEach(containerInstance -> {
                     ec2InstanceIds.add(containerInstance.getEc2InstanceId());
                 });
-
+        logger.info(String.format("Updating autoscale configuration for cluster %s to 0", cluster));
         //stopInstances by setting capacity to 0 in the autoscale group
         getAutoScalingGroupNameFromInstanceId(ec2InstanceIds)
                 .forEach(autoScalingGroupName -> updateAutoScaleGroup(autoScalingGroupName, 0));
+        logger.info(String.format("Cluster %s Ec2instances have been stopped successfully.", cluster));
         return true;
     }
 
     List<MigratingTask> getMigratingTaskDetailsForTheCluster(String cluster){
         List<MigratingTask> migratingTasks = new ArrayList<>();
         List<String> clusterContainerResources = new ArrayList<>();
-        clusterContainerResources.add("sdadsdsdsdfdsf");
+        clusterContainerResources.add("cluster-container-resources");
         List<ContainerResources> resources = getContainerResources(clusterContainerResources);
         List<MigratingTask> toMoveTasksList = new ArrayList<>();
         MigratingTask toMoveTasks = new MigratingTask();
@@ -125,43 +135,37 @@ public class Actions{
 
     public static void filterInstances(){
         List<ContainerResources> resources = new ArrayList<>();
-        for(int i = 0; i < 5; i++){
+        for(int i = 0; i < 6; i++){
             ContainerResources containerResources = new ContainerResources();
-            containerResources.setContainerInstanceArn(String.format("%d",i));
-            containerResources.setEc2InstanceId(String.format("%d",i));
+            containerResources.setContainerInstanceArn(String.format("instance-Arn-%d",i));
+            containerResources.setEc2InstanceId(String.format("ec2-instance-id-%d",i));
             containerResources.setRunningTasksCount(i);
             resources.add(containerResources);
         }
 
-        resources.get(0).setFreeSpace(new ContainerResources.FreeSpace(400,400));
-        resources.get(1).setFreeSpace(new ContainerResources.FreeSpace(250, 300));
-        resources.get(2).setFreeSpace(new ContainerResources.FreeSpace(70, 70));
-        resources.get(3).setFreeSpace(new ContainerResources.FreeSpace(80, 100));
-        resources.get(4).setFreeSpace(new ContainerResources.FreeSpace(120, 150));
+        resources.get(0).setFreeSpace(new ContainerResources.FreeSpace(200, 300));
+        resources.get(1).setFreeSpace(new ContainerResources.FreeSpace(50, 80));
+        resources.get(2).setFreeSpace(new ContainerResources.FreeSpace(100, 80));
+        resources.get(3).setFreeSpace(new ContainerResources.FreeSpace(500, 600));
+        resources.get(4).setFreeSpace(new ContainerResources.FreeSpace(200, 250));
+        resources.get(5).setFreeSpace(new ContainerResources.FreeSpace(380, 480));
 
 
 
         List<MigratingTask> task = new ArrayList<>();
-        for(int i = 0; i < 10; i++){
+        for(int i = 0; i < 4; i++){
             MigratingTask migratingTask = new MigratingTask();
-            migratingTask.setTaskArn(String.format("%d",i));
+            migratingTask.setTaskArn(String.format("task-arn-%d",i));
             Resource resource = new Resource();
             migratingTask.setResource(resource);
-            Instance instance = new Instance(String.format("instance:%d",i), String.format("resource-arn:%d",i));
+            Instance instance = new Instance(String.format("ec2-instance-id-%d",i), String.format("instance-Arn:%d",i));
             migratingTask.setSource(instance);
             task.add(migratingTask);
         }
-        task.get(0).setResource(new Resource(80, 40));
-        task.get(1).setResource(new Resource(100, 70));
-        task.get(2).setResource(new Resource(20, 30));
-        task.get(3).setResource(new Resource(150, 100));
-        task.get(4).setResource(new Resource(90, 80));
-        task.get(5).setResource(new Resource(40, 200));
-        task.get(6).setResource(new Resource(80, 100));
-        task.get(7).setResource(new Resource(60, 50));
-        task.get(8).setResource(new Resource(150, 150));
-        task.get(9).setResource(new Resource(25, 25));
-
+        task.get(0).setResource(new Resource(75, 50));
+        task.get(1).setResource(new Resource(850, 450));
+        task.get(2).setResource(new Resource(50, 100));
+        task.get(3).setResource(new Resource(400, 500));
 
         filterInstancesBasedOnAvailableResources(resources, task);
     }
@@ -191,12 +195,17 @@ public class Actions{
                 return t1.getMatchedResources().size() - t2.getMatchedResources().size();
             }
         });
-        
+
+        List<String> ec2InstancesToTurnOff = new ArrayList<>();
+
         for (int taskIndex = 0; taskIndex < toMoveTasksList.size(); taskIndex++) {
             List<Integer> matchedTargetList = new ArrayList<>();
             for (int resourcesIndex = 0; resourcesIndex < containerResourceList.size(); resourcesIndex++){
-                if(isMatchingResourceFound(toMoveTasksList.get(taskIndex), containerResourceList.get(resourcesIndex)))
-                    matchedTargetList.add(resourcesIndex);
+                if(isMatchingResourceFound(toMoveTasksList.get(taskIndex), containerResourceList.get(resourcesIndex))){
+                    //source != destination
+                    if(containerResourceList.get(resourcesIndex).getEc2InstanceId() != toMoveTasksList.get(taskIndex).getSource().getInstanceId())
+                        matchedTargetList.add(resourcesIndex);
+                }
             }
             if(matchedTargetList.size() > 0){
                 TaskQueue tq = new TaskQueue();
@@ -206,9 +215,13 @@ public class Actions{
             }
         }
 
+
+
         List<MigratingTask> tasks = allocateDestinationContainerForTasks(pq, containerResourceList);
+        System.out.println("\n\tSource\t\t\t\t\t\tDestination");
+        System.out.println("-------------------------------------------");
         for(MigratingTask task : tasks){
-            System.out.println("Source:"+task.getSource().getResourceArn()+"-> \tDestn:"+task.getDestination().getResourceArn());
+            System.out.println(task.getSource().getInstanceId()+"\t\t-> \t"+task.getDestination().getInstanceId());
         }
 
 
@@ -216,21 +229,37 @@ public class Actions{
 
     private static List<MigratingTask> allocateDestinationContainerForTasks(PriorityQueue<TaskQueue> pq, List<ContainerResources> containerResourceList) {
         List<MigratingTask> migratingTasks = new ArrayList<>();
+        System.out.println();
+        System.out.println();
         while(pq.size() > 0){
             TaskQueue taskq = pq.remove();
+            Integer remainingResourcesAfterAllocation = Integer.MAX_VALUE;
             for(int resourceIndex : taskq.getMatchedResources()){
                 if(isMatchingResourceFound(taskq.getTask(), containerResourceList.get(resourceIndex))){
-                    taskq.getTask().setDestination(new Instance(containerResourceList.get(resourceIndex).getEc2InstanceId(),
-                            containerResourceList.get(resourceIndex).getContainerInstanceArn()));
-                    migratingTasks.add(taskq.getTask());
-                    ContainerResources.FreeSpace freeSpace = new ContainerResources.FreeSpace();
-                    freeSpace.setCpuAvailable(freeSpace.getCpuAvailable() - (int)(taskq.getTask().getResource().getCpu()*1.3));
-                    freeSpace.setMemoryAvailable(freeSpace.getMemoryAvailable() - (int)(taskq.getTask().getResource().getMemory()*1.3));
-                    containerResourceList.get(resourceIndex).setFreeSpace(freeSpace);
-                    System.out.println("Saving resources for instance : " + taskq.getTask().getSource().getResourceArn());
+                    ContainerResources.FreeSpace freeSpace = containerResourceList.get(resourceIndex).getFreeSpace();
+                    int cpu = (int)(freeSpace.getCpuAvailable()*1.3) - taskq.getTask().getResource().getCpu();
+                    int memory = (int)(freeSpace.getMemoryAvailable()*1.3) - taskq.getTask().getResource().getMemory();
+
+                    //check for best fit
+                    if(remainingResourcesAfterAllocation > (cpu+memory)) {
+                        remainingResourcesAfterAllocation = (cpu + memory);
+
+                        //update destination node
+                        taskq.getTask().setDestination(new Instance(containerResourceList.get(resourceIndex).getEc2InstanceId(),
+                                containerResourceList.get(resourceIndex).getContainerInstanceArn()));
+
+                        //update the container resources
+                        ContainerResources.FreeSpace freeSpaceForTheContainerAfterAllocation = new ContainerResources.FreeSpace(cpu, memory);
+                        containerResourceList.get(resourceIndex).setFreeSpace(freeSpaceForTheContainerAfterAllocation);
+                    }
                 }
             }
+
+            //add to migrating tasks list
+            migratingTasks.add(taskq.getTask());
+            System.out.println("Saving resources for instance : " + taskq.getTask().getSource().getInstanceId());
         }
+
         return migratingTasks;
     }
 
@@ -264,7 +293,9 @@ public class Actions{
     }
 
     private static boolean isZeroRunningTasksInCluster(String cluster){
-        return describeTasksRunningInCluster(cluster).getTaskArns().size() == 0;
+        int count = describeTasksRunningInCluster(cluster).getTaskArns().size();
+        logger.info(String.format("Cluster: %s has %d running tasks", cluster, count));
+        return count == 0;
     }
 
     private static List<String> getAutoScalingGroupNameFromInstanceId(List<String>  instanceIds){
@@ -315,42 +346,6 @@ public class Actions{
         });
         return containerInstanceIdList;
     }
-	
-	private static List<ContainerResources> getContainerResources(List<String> containerInstances) {
-		DescribeContainerInstancesResult result = describeContainerInstances(containerInstances);
-		List<ContainerResources> resources = new ArrayList<>();
-		result.getContainerInstances().forEach(containerInstance -> {
-			
-			ContainerResources remainingResources = new ContainerResources();
-			remainingResources.setContainerInstanceArn(containerInstance.getContainerInstanceArn());
-			remainingResources.setEc2InstanceId(containerInstance.getEc2InstanceId());
-			remainingResources.setRunningTasksCount(containerInstance.getRunningTasksCount());
-
-			containerInstance.getRemainingResources().forEach(res -> {
-				if (res.getName().equals("CPU")) {
-					remainingResources.getFreeSpace().setCpuAvailable(res.getIntegerValue());
-				}
-				if (res.getName().equals("MEMORY")) {
-					remainingResources.getFreeSpace().setMemoryAvailable(res.getIntegerValue());
-				}
-			});
-			
-			
-			System.out.println(remainingResources); // for debugging
-			resources.add(remainingResources);
-		});
-		return resources;
-
-	}
-	
-	private static void taskMonitoring(List<String> containerInstances) {
-		DescribeContainerInstancesResult result = describeContainerInstances(containerInstances);
-		for (ContainerInstance c : result.getContainerInstances()) {
-			if(c.getRunningTasksCount()==0){
-				//stop that container instance
-			}
-		}
-	}
 
 public static ListTagsForResourceResult getTagsForResources(String resourcearn){
 
