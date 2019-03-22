@@ -34,7 +34,8 @@ public class ApiCaller {
           //DescribeClustersResult describeEcsClusters = actions.describeClusters(instanceList);
           //actions.stopInstancesIfInactive("cluster-1");
           //DescribeContainerInstancesResult describeContainerInstancesResult = actions.describeContainerInstances(instanceList);
-//          System.out.println(Actions.stopInstancesIfInactive("c1"));
+
+          Actions.filterInstances();
           //System.out.println(describeEcsClusters);
           System.out.println(actions.getTagsForResources(resourcearn));
           System.out.println(actions.getTaskDefinitionDetails(taskDefiition));

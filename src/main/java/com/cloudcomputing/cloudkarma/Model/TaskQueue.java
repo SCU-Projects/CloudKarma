@@ -6,14 +6,10 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
-
 @Data
-@NoArgsConstructor
 @AllArgsConstructor
-public class MigratingTask {
-    Instance source;
-    Instance destination;
-    List<String> tagsList;
-    Resource resource;
-    String TaskArn;
+@NoArgsConstructor
+public class TaskQueue {
+    MigratingTask task;
+    List<Integer> matchedResources;
 }
